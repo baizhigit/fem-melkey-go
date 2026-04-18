@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/baizhigit/fem-melkey-go/internal/app"
+	"github.com/baizhigit/fem-melkey-go/internal/routes"
 )
 
 func main() {
@@ -19,10 +20,11 @@ func main() {
 		panic(err)
 	}
 
-	http.HandleFunc("/health", HealthCheck)
+	r := routes.SetupRoutes(app)
 
 	server := &http.Server{
 		Addr:         fmt.Sprintf(":%d", port),
+		Handler:      r,
 		IdleTimeout:  time.Minute,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 30 * time.Second,
@@ -34,8 +36,4 @@ func main() {
 	if err != nil {
 		app.Logger.Fatal(err)
 	}
-}
-
-func HealthCheck(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "Status is available\n")
 }
