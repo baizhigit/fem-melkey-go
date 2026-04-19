@@ -1,0 +1,95 @@
+version: '3'
+
+# Глобальные переменные проекта
+vars:
+  GO_VERSION: '1.25.3'
+  GOLANGCI_LINT_VERSION: 'v2.10.1'
+  GOOSE_VERSION: 'v3.27.0'
+
+  BIN_DIR: '{{.ROOT_DIR}}/bin'
+  GOLANGCI_LINT: '{{.BIN_DIR}}/golangci-lint'
+  GOOSE: '{{.BIN_DIR}}/goose'
+  DATABASE_URL: "postgres://testuser:testpass@localhost:5432/testdb?sslmode=disable"
+
+
+tasks:
+
+  install-golangci-lint:
+    desc: "Устанавливает golangci-lint в каталог bin"
+    cmds:
+      - '[ -f {{.GOLANGCI_LINT}} ] || curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b {{.BIN_DIR}} {{.GOLANGCI_LINT_VERSION}}'
+    status:
+      - test -x {{.GOLANGCI_LINT}}
+
+  format:
+    desc: "Форматирует весь проект через golangci-lint (gofumpt + gci)"
+    deps: [ install-golangci-lint ]
+    cmds:
+      - echo "🧼 Форматируем проект..."
+      - "{{.GOLANGCI_LINT}} fmt"
+
+  lint:
+    desc: "Lint the whole workspace or specific path"
+    deps: [ install-golangci-lint ]
+    cmds:
+      - echo "🔍 Линтим весь workspace..."
+      # ./... в корне с go.work автоматически подхватит все модули
+      # To lint one service: task lint -- services/user/...
+      - "{{.GOLANGCI_LINT}} run {{.CLI_ARGS | default \"./...\"}}"
+
+  lint:fast:
+    desc: "Линтит только измененные файлы"
+    cmds:
+      - "{{.GOLANGCI_LINT}} run --new-from-rev=HEAD~1"
+
+  lint:fix:
+    desc: "Fix lint errors and format code"
+    cmds:
+      - "{{.GOLANGCI_LINT}} fmt {{.CLI_ARGS}}"
+      - "{{.GOLANGCI_LINT}} run --fix {{.CLI_ARGS | default \"./...\"}}"
+
+  lint:check:
+    desc: "Verify .golangci.yml is valid"
+    cmds:
+      - "{{.GOLANGCI_LINT}} config verify"
+
+
+  goose:install:
+    cmds:
+      - '[ -f {{.GOOSE}} ] || GOBIN={{.BIN_DIR}} go install github.com/pressly/goose/v3/cmd/goose@{{.GOOSE_VERSION}}'
+    status:
+      - test -x {{.GOOSE}}
+
+  # task goose:create NAME=create_users_table
+  goose:create:
+    desc: "Create new migration file"
+    deps: [goose:install]
+    cmds:
+      - "{{.GOOSE}} -dir ./migrations create {{.NAME}} sql"
+
+  goose:up:
+    cmd: "{{.GOOSE}} -dir ./migrations postgres '{{.DATABASE_URL}}' up"
+
+  goose:down:
+    cmd: "{{.GOOSE}} -dir ./migrations postgres '{{.DATABASE_URL}}' down"
+
+  goose:status:
+    cmd: "{{.GOOSE}} -dir ./migrations postgres '{{.DATABASE_URL}}' status"
+
+
+
+
+  run:
+    cmds:
+      - go run ./main.go
+
+  test:
+    cmds:
+      - go test -v -cover ./...
+      
+
+  docker-up:
+    docker compose up -d
+
+  docker-down:
+    docker compose down
