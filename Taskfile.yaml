@@ -89,7 +89,7 @@ tasks:
       
 
   docker-up:
-    docker compose up --build 
+    docker-compose up
 
   docker-down:
-    docker compose down
+    docker-compose down -v
